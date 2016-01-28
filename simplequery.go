@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/url"
 	"strconv"
+	"time"
 
 	"github.com/PlanitarInc/go-simplequery/util"
 )
@@ -174,6 +175,22 @@ func (s ParamPair) Float64() (float64, error) {
 
 func (s ParamPair) Float64Default(def float64) float64 {
 	if val, err := s.Float64(); err != nil {
+		return def
+	} else {
+		return val
+	}
+}
+
+func (s ParamPair) Time() (time.Time, error) {
+	if s.Value == nil {
+		return time.Time{}, UnspecifiedValueErr
+	}
+
+	return util.ParseTime(*s.Value)
+}
+
+func (s ParamPair) TimeDefault(def time.Time) time.Time {
+	if val, err := s.Time(); err != nil {
 		return def
 	} else {
 		return val

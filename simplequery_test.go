@@ -4,6 +4,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	. "github.com/onsi/gomega"
 )
@@ -420,6 +421,82 @@ func TestParamPairFloat64_Invalid(t *testing.T) {
 	res = p.Float64Default(-99.9)
 	Ω(res).Should(Equal(float64(-99.9)))
 }
+
+func TestParamPairTime(t *testing.T) {
+	RegisterTestingT(t)
+
+	var p ParamPair
+	var res, expTime time.Time
+	var err error
+
+	def := time.Date(1860, 7, 2, 12, 0, 0, 0, time.UTC)
+
+	p = ParamPair{Key: "k", Value: pStr("123")}
+	expTime = time.Unix(123, 0).UTC()
+
+	res, err = p.Time()
+	Ω(err).Should(BeNil())
+	Ω(res).Should(Equal(expTime))
+
+	res = p.TimeDefault(def)
+	Ω(res).Should(Equal(expTime))
+
+	p = ParamPair{Key: "k", Value: pStr("252460800000")}
+	expTime = time.Date(1978, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	res, err = p.Time()
+	Ω(err).Should(BeNil())
+	Ω(res).Should(Equal(expTime))
+
+	res = p.TimeDefault(def)
+	Ω(res).Should(Equal(expTime))
+
+	p = ParamPair{Key: "k", Value: pStr("2016-02-03T15:04:05Z")}
+	expTime = time.Date(2016, 2, 3, 15, 4, 5, 0, time.UTC)
+
+	res, err = p.Time()
+	Ω(err).Should(BeNil())
+	Ω(res).Should(Equal(expTime))
+
+	res = p.TimeDefault(def)
+	Ω(res).Should(Equal(expTime))
+}
+
+func TestParamPairTime_Empty(t *testing.T) {
+	RegisterTestingT(t)
+
+	var p ParamPair
+	var res time.Time
+	var err error
+
+	def := time.Date(1860, 7, 2, 12, 0, 0, 0, time.UTC)
+
+	p = ParamPair{Key: "k"}
+	_, err = p.Time()
+	Ω(err).Should(Equal(UnspecifiedValueErr))
+
+	res = p.TimeDefault(def)
+	Ω(res).Should(Equal(def))
+}
+
+func TestParamPairTime_Invalid(t *testing.T) {
+	RegisterTestingT(t)
+
+	var p ParamPair
+	var res time.Time
+	var err error
+
+	def := time.Date(1860, 7, 2, 12, 0, 0, 0, time.UTC)
+
+	p = ParamPair{Key: "k", Value: pStr("wrong time value")}
+	_, err = p.Time()
+	Ω(err).ShouldNot(BeNil())
+	Ω(err.Error()).Should(HavePrefix("parsing time "))
+
+	res = p.TimeDefault(def)
+	Ω(res).Should(Equal(def))
+}
+
 func pStr(str string) *string {
 	return &str
 }
