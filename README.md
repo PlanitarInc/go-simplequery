@@ -9,7 +9,7 @@ A Go package to interact with arbitrary URL query values
 ### Importing
 
 ```go
-import github.com/PlanitarInc/go-simplequery
+import "github.com/PlanitarInc/go-simplequery"
 ```
 
 ### Documentation
