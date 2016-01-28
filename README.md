@@ -6,7 +6,7 @@ A Go package to interact with arbitrary URL query values
 [![GoDoc](https://godoc.org/github.com/PlanitarInc/go-simplequery?status.png)](http://godoc.org/github.com/PlanitarInc/go-simplequery)
 
 
-### Importing
+### Import
 
 ```go
 import "github.com/PlanitarInc/go-simplequery"
