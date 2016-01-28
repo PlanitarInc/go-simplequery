@@ -29,10 +29,29 @@ func FromQuery(q url.Values) *Values {
 	}
 }
 
-func (s Values) GetParamValues(key string) *ParamValues {
-	return &ParamValues{
-		Key:    key,
-		Values: s.Values[key],
+func (s Values) Has(key string) bool {
+	_, ok := s.Values[key]
+	return ok
+}
+
+func (s Values) Get(key string) StringValue {
+	return s.GetIndex(key, 0)
+}
+
+func (s Values) GetIndex(key string, idx int) StringValue {
+	if vs, ok := s.Values[key]; !ok || idx < 0 || len(vs) <= idx {
+		return StringValue{}
+	} else {
+		return StringValue{&vs[idx]}
+	}
+}
+
+func (s Values) GetCombine(key string, fn func([]string) *string) StringValue {
+	if vs, ok := s.Values[key]; !ok {
+		// if no values, then there's nothing to combine
+		return StringValue{}
+	} else {
+		return StringValue{fn(vs)}
 	}
 }
 
@@ -46,56 +65,18 @@ func (s Values) FilterByKey(fn func(string) bool) *Values {
 	return res
 }
 
-func (s *Values) ForEach(fn func(*ParamValues)) *Values {
-	tmp := ParamValues{}
+func (s *Values) ForEach(fn func(string, []string)) *Values {
 	for k, vs := range s.Values {
-		tmp.Key = k
-		tmp.Values = vs
-
-		fn(&tmp)
+		fn(k, vs)
 	}
-
 	return s
 }
 
-type ParamValues struct {
-	Key    string
-	Values []string
-}
-
-func (vs ParamValues) Empty() bool {
-	return len(vs.Values) == 0
-}
-
-func (s ParamValues) First() *ParamPair {
-	return s.GetIndex(0)
-}
-
-func (s ParamValues) GetIndex(idx int) *ParamPair {
-	var val *string
-	if idx >= 0 && idx < len(s.Values) {
-		val = &s.Values[idx]
-	}
-
-	return &ParamPair{
-		Key:   s.Key,
-		Value: val,
-	}
-}
-
-func (s ParamValues) Combine(fn func([]string) *string) *ParamPair {
-	return &ParamPair{
-		Key:   s.Key,
-		Value: fn(s.Values),
-	}
-}
-
-type ParamPair struct {
-	Key   string
+type StringValue struct {
 	Value *string
 }
 
-func (s ParamPair) String() (string, error) {
+func (s StringValue) String() (string, error) {
 	if s.Value == nil {
 		return "", UnspecifiedValueErr
 	}
@@ -103,7 +84,7 @@ func (s ParamPair) String() (string, error) {
 	return *s.Value, nil
 }
 
-func (s ParamPair) StringDefault(def string) string {
+func (s StringValue) StringDefault(def string) string {
 	if val, err := s.String(); err != nil {
 		return def
 	} else {
@@ -111,7 +92,7 @@ func (s ParamPair) StringDefault(def string) string {
 	}
 }
 
-func (s ParamPair) Bool() (bool, error) {
+func (s StringValue) Bool() (bool, error) {
 	if s.Value == nil {
 		return false, UnspecifiedValueErr
 	}
@@ -125,7 +106,7 @@ func (s ParamPair) Bool() (bool, error) {
 	}
 }
 
-func (s ParamPair) BoolDefault(def bool) bool {
+func (s StringValue) BoolDefault(def bool) bool {
 	if val, err := s.Bool(); err != nil {
 		return def
 	} else {
@@ -133,7 +114,7 @@ func (s ParamPair) BoolDefault(def bool) bool {
 	}
 }
 
-func (s ParamPair) Int64() (int64, error) {
+func (s StringValue) Int64() (int64, error) {
 	if s.Value == nil {
 		return 0, UnspecifiedValueErr
 	}
@@ -141,7 +122,7 @@ func (s ParamPair) Int64() (int64, error) {
 	return strconv.ParseInt(*s.Value, 0, 64)
 }
 
-func (s ParamPair) Int64Default(def int64) int64 {
+func (s StringValue) Int64Default(def int64) int64 {
 	if val, err := s.Int64(); err != nil {
 		return def
 	} else {
@@ -149,7 +130,7 @@ func (s ParamPair) Int64Default(def int64) int64 {
 	}
 }
 
-func (s ParamPair) Uint64() (uint64, error) {
+func (s StringValue) Uint64() (uint64, error) {
 	if s.Value == nil {
 		return 0, UnspecifiedValueErr
 	}
@@ -157,7 +138,7 @@ func (s ParamPair) Uint64() (uint64, error) {
 	return strconv.ParseUint(*s.Value, 0, 64)
 }
 
-func (s ParamPair) Uint64Default(def uint64) uint64 {
+func (s StringValue) Uint64Default(def uint64) uint64 {
 	if val, err := s.Uint64(); err != nil {
 		return def
 	} else {
@@ -165,7 +146,7 @@ func (s ParamPair) Uint64Default(def uint64) uint64 {
 	}
 }
 
-func (s ParamPair) Float64() (float64, error) {
+func (s StringValue) Float64() (float64, error) {
 	if s.Value == nil {
 		return 0, UnspecifiedValueErr
 	}
@@ -173,7 +154,7 @@ func (s ParamPair) Float64() (float64, error) {
 	return strconv.ParseFloat(*s.Value, 64)
 }
 
-func (s ParamPair) Float64Default(def float64) float64 {
+func (s StringValue) Float64Default(def float64) float64 {
 	if val, err := s.Float64(); err != nil {
 		return def
 	} else {
@@ -181,7 +162,7 @@ func (s ParamPair) Float64Default(def float64) float64 {
 	}
 }
 
-func (s ParamPair) Time() (time.Time, error) {
+func (s StringValue) Time() (time.Time, error) {
 	if s.Value == nil {
 		return time.Time{}, UnspecifiedValueErr
 	}
@@ -189,7 +170,7 @@ func (s ParamPair) Time() (time.Time, error) {
 	return util.ParseTime(*s.Value)
 }
 
-func (s ParamPair) TimeDefault(def time.Time) time.Time {
+func (s StringValue) TimeDefault(def time.Time) time.Time {
 	if val, err := s.Time(); err != nil {
 		return def
 	} else {

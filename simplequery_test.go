@@ -9,30 +9,121 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestValuesGetParamValues(t *testing.T) {
+func TestValuesHas(t *testing.T) {
 	RegisterTestingT(t)
 
-	q, err := url.ParseQuery("k1=v1_1&k1=v1_2&k2=v2&k3")
+	urlQ, err := url.ParseQuery("k1=v1_1&k1=v1_2&k2=v2&k3")
 	Ω(err).Should(BeNil())
-	v := FromQuery(q)
+	q := FromQuery(urlQ)
 
-	var vs *ParamValues
+	Ω(q.Has("k1")).Should(BeTrue())
+	Ω(q.Has("k2")).Should(BeTrue())
+	Ω(q.Has("k3")).Should(BeTrue())
+	Ω(q.Has("k9")).Should(BeFalse())
+}
 
-	vs = v.GetParamValues("k1")
-	Ω(vs.Key).Should(Equal("k1"))
-	Ω(vs.Values).Should(Equal([]string{"v1_1", "v1_2"}))
+func TestValuesGet(t *testing.T) {
+	RegisterTestingT(t)
 
-	vs = v.GetParamValues("k2")
-	Ω(vs.Key).Should(Equal("k2"))
-	Ω(vs.Values).Should(Equal([]string{"v2"}))
+	var v StringValue
 
-	vs = v.GetParamValues("k3")
-	Ω(vs.Key).Should(Equal("k3"))
-	Ω(vs.Values).Should(Equal([]string{""}))
+	urlQ, err := url.ParseQuery("k1=v1_1&k1=v1_2&k2=v2&k3")
+	Ω(err).Should(BeNil())
+	q := FromQuery(urlQ)
 
-	vs = v.GetParamValues("k9")
-	Ω(vs.Key).Should(Equal("k9"))
-	Ω(vs.Values).Should(BeEmpty())
+	v = q.Get("k1")
+	Ω(v.Value).Should(Equal(pStr("v1_1")))
+
+	v = q.Get("k2")
+	Ω(v.Value).Should(Equal(pStr("v2")))
+
+	v = q.Get("k3")
+	Ω(v.Value).Should(Equal(pStr("")))
+
+	v = q.Get("k9")
+	Ω(v.Value).Should(BeNil())
+}
+
+func TestValuesGetIndex(t *testing.T) {
+	RegisterTestingT(t)
+
+	var v StringValue
+
+	urlQ, err := url.ParseQuery("k1=v1_1&k1=v1_2&k2=v2&k3")
+	Ω(err).Should(BeNil())
+	q := FromQuery(urlQ)
+
+	v = q.GetIndex("k1", -1)
+	Ω(v.Value).Should(BeNil())
+	v = q.GetIndex("k1", 0)
+	Ω(v.Value).Should(Equal(pStr("v1_1")))
+	v = q.GetIndex("k1", 1)
+	Ω(v.Value).Should(Equal(pStr("v1_2")))
+	v = q.GetIndex("k1", 2)
+	Ω(v.Value).Should(BeNil())
+
+	v = q.GetIndex("k2", -1)
+	Ω(v.Value).Should(BeNil())
+	v = q.GetIndex("k2", 0)
+	Ω(v.Value).Should(Equal(pStr("v2")))
+	v = q.GetIndex("k2", 2)
+	Ω(v.Value).Should(BeNil())
+
+	v = q.GetIndex("k3", 0)
+	Ω(v.Value).Should(Equal(pStr("")))
+
+	v = q.GetIndex("k9", 0)
+	Ω(v.Value).Should(BeNil())
+}
+
+func TestValuesGetCombine(t *testing.T) {
+	RegisterTestingT(t)
+
+	var v StringValue
+
+	urlQ, err := url.ParseQuery("k1=v1_1&k1=v1_2&k2=v2&k3")
+	Ω(err).Should(BeNil())
+	q := FromQuery(urlQ)
+
+	reject := func(vs []string) *string {
+		return nil
+	}
+	concatAll := func(vs []string) *string {
+		return pStr(strings.Join(vs, "-"))
+	}
+	concatLong := func(vs []string) *string {
+		if len(vs) < 2 {
+			return nil
+		}
+		return concatAll(vs[1:])
+	}
+
+	v = q.GetCombine("k1", reject)
+	Ω(v.Value).Should(BeNil())
+	v = q.GetCombine("k2", reject)
+	Ω(v.Value).Should(BeNil())
+	v = q.GetCombine("k3", reject)
+	Ω(v.Value).Should(BeNil())
+	v = q.GetCombine("k9", reject)
+	Ω(v.Value).Should(BeNil())
+
+	v = q.GetCombine("k1", concatAll)
+	Ω(v.Value).Should(Equal(pStr("v1_1-v1_2")))
+	v = q.GetCombine("k2", concatAll)
+	Ω(v.Value).Should(Equal(pStr("v2")))
+	v = q.GetCombine("k3", concatAll)
+	Ω(v.Value).Should(Equal(pStr("")))
+	v = q.GetCombine("k9", concatAll)
+	Ω(v.Value).Should(BeNil())
+
+	v = q.GetCombine("k1", concatLong)
+	Ω(v.Value).Should(Equal(pStr("v1_2")))
+	v = q.GetCombine("k2", concatLong)
+	Ω(v.Value).Should(BeNil())
+	v = q.GetCombine("k3", concatLong)
+	Ω(v.Value).Should(BeNil())
+	v = q.GetCombine("k9", concatLong)
+	Ω(v.Value).Should(BeNil())
 }
 
 func TestValuesFilterByKey(t *testing.T) {
@@ -65,8 +156,8 @@ func TestValuesForEach(t *testing.T) {
 	v := FromQuery(q)
 
 	res := map[string][]string{}
-	v.ForEach(func(p *ParamValues) {
-		res[p.Key] = p.Values
+	v.ForEach(func(key string, vs []string) {
+		res[key] = vs
 	})
 
 	Ω(res).Should(HaveKeyWithValue("k1", []string{"v1_1", "v1_2"}))
@@ -75,425 +166,330 @@ func TestValuesForEach(t *testing.T) {
 	Ω(res).Should(HaveLen(3))
 }
 
-func TestParamValuesEmpty(t *testing.T) {
+func TestStringValueString(t *testing.T) {
 	RegisterTestingT(t)
 
-	Ω(ParamValues{}.Empty()).Should(BeTrue())
-	Ω(ParamValues{Values: []string{}}.Empty()).Should(BeTrue())
-	Ω(ParamValues{Values: []string{""}}.Empty()).Should(BeFalse())
-}
-
-func TestParamValuesGetIndex(t *testing.T) {
-	RegisterTestingT(t)
-
-	var vs ParamValues
-	var p *ParamPair
-
-	vs = ParamValues{Key: "k"}
-
-	p = vs.First()
-	Ω(p.Key).Should(Equal("k"))
-	Ω(p.Value).Should(BeNil())
-	p = vs.GetIndex(0)
-	Ω(p.Key).Should(Equal("k"))
-	Ω(p.Value).Should(BeNil())
-	p = vs.GetIndex(2)
-	Ω(p.Key).Should(Equal("k"))
-	Ω(p.Value).Should(BeNil())
-
-	vs = ParamValues{Key: "k", Values: []string{}}
-
-	p = vs.First()
-	Ω(p.Key).Should(Equal("k"))
-	Ω(p.Value).Should(BeNil())
-	p = vs.GetIndex(0)
-	Ω(p.Key).Should(Equal("k"))
-	Ω(p.Value).Should(BeNil())
-	p = vs.GetIndex(2)
-	Ω(p.Key).Should(Equal("k"))
-	Ω(p.Value).Should(BeNil())
-
-	vs = ParamValues{Key: "k", Values: []string{"v0", "v1"}}
-
-	p = vs.First()
-	Ω(p.Key).Should(Equal("k"))
-	Ω(p.Value).Should(Equal(pStr("v0")))
-	p = vs.GetIndex(0)
-	Ω(p.Key).Should(Equal("k"))
-	Ω(p.Value).Should(Equal(pStr("v0")))
-	p = vs.GetIndex(2)
-	Ω(p.Key).Should(Equal("k"))
-	Ω(p.Value).Should(BeNil())
-}
-
-func TestParamValuesCombine(t *testing.T) {
-	RegisterTestingT(t)
-
-	var vs ParamValues
-	var p *ParamPair
-
-	concatAll := func(vs []string) *string {
-		return pStr(strings.Join(vs, "-"))
-	}
-	concatLong := func(vs []string) *string {
-		if len(vs) < 1 {
-			return nil
-		}
-		return concatAll(vs[1:])
-	}
-
-	vs = ParamValues{Key: "k"}
-
-	p = vs.Combine(concatAll)
-	Ω(p.Key).Should(Equal("k"))
-	Ω(p.Value).Should(Equal(pStr("")))
-	p = vs.Combine(concatLong)
-	Ω(p.Key).Should(Equal("k"))
-	Ω(p.Value).Should(BeNil())
-
-	vs = ParamValues{Key: "k", Values: []string{}}
-
-	p = vs.Combine(concatAll)
-	Ω(p.Key).Should(Equal("k"))
-	Ω(p.Value).Should(Equal(pStr("")))
-	p = vs.Combine(concatLong)
-	Ω(p.Key).Should(Equal("k"))
-	Ω(p.Value).Should(BeNil())
-
-	vs = ParamValues{Key: "k", Values: []string{"v0", "v1"}}
-
-	p = vs.Combine(concatAll)
-	Ω(p.Key).Should(Equal("k"))
-	Ω(p.Value).Should(Equal(pStr("v0-v1")))
-	p = vs.Combine(concatLong)
-	Ω(p.Key).Should(Equal("k"))
-	Ω(p.Value).Should(Equal(pStr("v1")))
-}
-
-func TestParamPairString(t *testing.T) {
-	RegisterTestingT(t)
-
-	var p ParamPair
+	var v StringValue
 	var res string
 	var err error
 
-	p = ParamPair{Key: "k", Value: pStr("value")}
+	v = StringValue{Value: pStr("value")}
 
-	res, err = p.String()
+	res, err = v.String()
 	Ω(err).Should(BeNil())
 	Ω(res).Should(Equal("value"))
 
-	res = p.StringDefault("default")
+	res = v.StringDefault("default")
 	Ω(res).Should(Equal("value"))
 }
 
-func TestParamPairStringEmpty(t *testing.T) {
+func TestStringValueStringEmpty(t *testing.T) {
 	RegisterTestingT(t)
 
-	var p ParamPair
+	var v StringValue
 	var res string
 	var err error
 
-	p = ParamPair{Key: "k"}
+	v = StringValue{}
 
-	_, err = p.String()
+	_, err = v.String()
 	Ω(err).Should(Equal(UnspecifiedValueErr))
 
-	res = p.StringDefault("default")
+	res = v.StringDefault("default")
 	Ω(res).Should(Equal("default"))
 }
 
-func TestParamPairBool(t *testing.T) {
+func TestStringValueBool(t *testing.T) {
 	RegisterTestingT(t)
 
-	var p ParamPair
+	var v StringValue
 	var res bool
 	var err error
 
-	p = ParamPair{Key: "k", Value: pStr("1")}
+	v = StringValue{Value: pStr("1")}
 
-	res, err = p.Bool()
+	res, err = v.Bool()
 	Ω(err).Should(BeNil())
 	Ω(res).Should(BeTrue())
 
-	res = p.BoolDefault(false)
+	res = v.BoolDefault(false)
 	Ω(res).Should(BeTrue())
 
-	p = ParamPair{Key: "k", Value: pStr("0")}
+	v = StringValue{Value: pStr("0")}
 
-	res, err = p.Bool()
+	res, err = v.Bool()
 	Ω(err).Should(BeNil())
 	Ω(res).Should(BeFalse())
 
-	res = p.BoolDefault(true)
+	res = v.BoolDefault(true)
 	Ω(res).Should(BeFalse())
 }
 
-func TestParamPairBool_Empty(t *testing.T) {
+func TestStringValueBool_Empty(t *testing.T) {
 	RegisterTestingT(t)
 
-	var p ParamPair
+	var v StringValue
 	var res bool
 	var err error
 
-	p = ParamPair{Key: "k"}
-	_, err = p.Bool()
+	v = StringValue{}
+	_, err = v.Bool()
 	Ω(err).Should(Equal(UnspecifiedValueErr))
 
-	res = p.BoolDefault(true)
+	res = v.BoolDefault(true)
 	Ω(res).Should(BeTrue())
 }
 
-func TestParamPairBool_Invalid(t *testing.T) {
+func TestStringValueBool_Invalid(t *testing.T) {
 	RegisterTestingT(t)
 
-	var p ParamPair
+	var v StringValue
 	var res bool
 	var err error
 
-	p = ParamPair{Key: "k", Value: pStr("")}
-	res, err = p.Bool()
+	v = StringValue{Value: pStr("")}
+	res, err = v.Bool()
 	Ω(err).Should(BeNil())
 	Ω(res).Should(BeTrue())
 
-	res = p.BoolDefault(false)
+	res = v.BoolDefault(false)
 	Ω(res).Should(BeTrue())
 }
 
-func TestParamPairInt64(t *testing.T) {
+func TestStringValueInt64(t *testing.T) {
 	RegisterTestingT(t)
 
-	var p ParamPair
+	var v StringValue
 	var res int64
 	var err error
 
-	p = ParamPair{Key: "k", Value: pStr("12")}
+	v = StringValue{Value: pStr("12")}
 
-	res, err = p.Int64()
+	res, err = v.Int64()
 	Ω(err).Should(BeNil())
 	Ω(res).Should(Equal(int64(12)))
 
-	res = p.Int64Default(-99)
+	res = v.Int64Default(-99)
 	Ω(res).Should(Equal(int64(12)))
 
-	p = ParamPair{Key: "k", Value: pStr("-12")}
+	v = StringValue{Value: pStr("-12")}
 
-	res, err = p.Int64()
+	res, err = v.Int64()
 	Ω(err).Should(BeNil())
 	Ω(res).Should(Equal(int64(-12)))
 
-	res = p.Int64Default(-99)
+	res = v.Int64Default(-99)
 	Ω(res).Should(Equal(int64(-12)))
 }
 
-func TestParamPairInt64_Empty(t *testing.T) {
+func TestStringValueInt64_Empty(t *testing.T) {
 	RegisterTestingT(t)
 
-	var p ParamPair
+	var v StringValue
 	var res int64
 	var err error
 
-	p = ParamPair{Key: "k"}
-	_, err = p.Int64()
+	v = StringValue{}
+	_, err = v.Int64()
 	Ω(err).Should(Equal(UnspecifiedValueErr))
 
-	res = p.Int64Default(-99)
+	res = v.Int64Default(-99)
 	Ω(res).Should(Equal(int64(-99)))
 }
 
-func TestParamPairInt64_Invalid(t *testing.T) {
+func TestStringValueInt64_Invalid(t *testing.T) {
 	RegisterTestingT(t)
 
-	var p ParamPair
+	var v StringValue
 	var res int64
 	var err error
 
-	p = ParamPair{Key: "k", Value: pStr("")}
-	_, err = p.Int64()
+	v = StringValue{Value: pStr("")}
+	_, err = v.Int64()
 	Ω(err).ShouldNot(BeNil())
 	Ω(err.Error()).Should(Equal(`strconv.ParseInt: parsing "": invalid syntax`))
 
-	res = p.Int64Default(-99)
+	res = v.Int64Default(-99)
 	Ω(res).Should(Equal(int64(-99)))
 }
 
-func TestParamPairUint64(t *testing.T) {
+func TestStringValueUint64(t *testing.T) {
 	RegisterTestingT(t)
 
-	var p ParamPair
+	var v StringValue
 	var res uint64
 	var err error
 
-	p = ParamPair{Key: "k", Value: pStr("12")}
+	v = StringValue{Value: pStr("12")}
 
-	res, err = p.Uint64()
+	res, err = v.Uint64()
 	Ω(err).Should(BeNil())
 	Ω(res).Should(Equal(uint64(12)))
 
-	res = p.Uint64Default(99)
+	res = v.Uint64Default(99)
 	Ω(res).Should(Equal(uint64(12)))
 }
 
-func TestParamPairUint64_Empty(t *testing.T) {
+func TestStringValueUint64_Empty(t *testing.T) {
 	RegisterTestingT(t)
 
-	var p ParamPair
+	var v StringValue
 	var res uint64
 	var err error
 
-	p = ParamPair{Key: "k"}
-	_, err = p.Uint64()
+	v = StringValue{}
+	_, err = v.Uint64()
 	Ω(err).Should(Equal(UnspecifiedValueErr))
 
-	res = p.Uint64Default(99)
+	res = v.Uint64Default(99)
 	Ω(res).Should(Equal(uint64(99)))
 }
 
-func TestParamPairUint64_Invalid(t *testing.T) {
+func TestStringValueUint64_Invalid(t *testing.T) {
 	RegisterTestingT(t)
 
-	var p ParamPair
+	var v StringValue
 	var res uint64
 	var err error
 
-	p = ParamPair{Key: "k", Value: pStr("")}
-	_, err = p.Uint64()
+	v = StringValue{Value: pStr("")}
+	_, err = v.Uint64()
 	Ω(err).ShouldNot(BeNil())
 	Ω(err.Error()).Should(Equal(`strconv.ParseUint: parsing "": invalid syntax`))
 
-	res = p.Uint64Default(99)
+	res = v.Uint64Default(99)
 	Ω(res).Should(Equal(uint64(99)))
 }
 
-func TestParamPairFloat64(t *testing.T) {
+func TestStringValueFloat64(t *testing.T) {
 	RegisterTestingT(t)
 
-	var p ParamPair
+	var v StringValue
 	var res float64
 	var err error
 
-	p = ParamPair{Key: "k", Value: pStr("12.3")}
+	v = StringValue{Value: pStr("12.3")}
 
-	res, err = p.Float64()
+	res, err = v.Float64()
 	Ω(err).Should(BeNil())
 	Ω(res).Should(Equal(float64(12.3)))
 
-	res = p.Float64Default(-99.9)
+	res = v.Float64Default(-99.9)
 	Ω(res).Should(Equal(float64(12.3)))
 
-	p = ParamPair{Key: "k", Value: pStr("-12.3")}
+	v = StringValue{Value: pStr("-12.3")}
 
-	res, err = p.Float64()
+	res, err = v.Float64()
 	Ω(err).Should(BeNil())
 	Ω(res).Should(Equal(float64(-12.3)))
 
-	res = p.Float64Default(-99.9)
+	res = v.Float64Default(-99.9)
 	Ω(res).Should(Equal(float64(-12.3)))
 }
 
-func TestParamPairFloat64_Empty(t *testing.T) {
+func TestStringValueFloat64_Empty(t *testing.T) {
 	RegisterTestingT(t)
 
-	var p ParamPair
+	var v StringValue
 	var res float64
 	var err error
 
-	p = ParamPair{Key: "k"}
-	_, err = p.Float64()
+	v = StringValue{}
+	_, err = v.Float64()
 	Ω(err).Should(Equal(UnspecifiedValueErr))
 
-	res = p.Float64Default(-99.9)
+	res = v.Float64Default(-99.9)
 	Ω(res).Should(Equal(float64(-99.9)))
 }
 
-func TestParamPairFloat64_Invalid(t *testing.T) {
+func TestStringValueFloat64_Invalid(t *testing.T) {
 	RegisterTestingT(t)
 
-	var p ParamPair
+	var v StringValue
 	var res float64
 	var err error
 
-	p = ParamPair{Key: "k", Value: pStr("")}
-	_, err = p.Float64()
+	v = StringValue{Value: pStr("")}
+	_, err = v.Float64()
 	Ω(err).ShouldNot(BeNil())
 	Ω(err.Error()).Should(Equal(`strconv.ParseFloat: parsing "": invalid syntax`))
 
-	res = p.Float64Default(-99.9)
+	res = v.Float64Default(-99.9)
 	Ω(res).Should(Equal(float64(-99.9)))
 }
 
-func TestParamPairTime(t *testing.T) {
+func TestStringValueTime(t *testing.T) {
 	RegisterTestingT(t)
 
-	var p ParamPair
+	var v StringValue
 	var res, expTime time.Time
 	var err error
 
 	def := time.Date(1860, 7, 2, 12, 0, 0, 0, time.UTC)
 
-	p = ParamPair{Key: "k", Value: pStr("123")}
+	v = StringValue{Value: pStr("123")}
 	expTime = time.Unix(123, 0).UTC()
 
-	res, err = p.Time()
+	res, err = v.Time()
 	Ω(err).Should(BeNil())
 	Ω(res).Should(Equal(expTime))
 
-	res = p.TimeDefault(def)
+	res = v.TimeDefault(def)
 	Ω(res).Should(Equal(expTime))
 
-	p = ParamPair{Key: "k", Value: pStr("252460800000")}
+	v = StringValue{Value: pStr("252460800000")}
 	expTime = time.Date(1978, 1, 1, 0, 0, 0, 0, time.UTC)
 
-	res, err = p.Time()
+	res, err = v.Time()
 	Ω(err).Should(BeNil())
 	Ω(res).Should(Equal(expTime))
 
-	res = p.TimeDefault(def)
+	res = v.TimeDefault(def)
 	Ω(res).Should(Equal(expTime))
 
-	p = ParamPair{Key: "k", Value: pStr("2016-02-03T15:04:05Z")}
+	v = StringValue{Value: pStr("2016-02-03T15:04:05Z")}
 	expTime = time.Date(2016, 2, 3, 15, 4, 5, 0, time.UTC)
 
-	res, err = p.Time()
+	res, err = v.Time()
 	Ω(err).Should(BeNil())
 	Ω(res).Should(Equal(expTime))
 
-	res = p.TimeDefault(def)
+	res = v.TimeDefault(def)
 	Ω(res).Should(Equal(expTime))
 }
 
-func TestParamPairTime_Empty(t *testing.T) {
+func TestStringValueTime_Empty(t *testing.T) {
 	RegisterTestingT(t)
 
-	var p ParamPair
+	var v StringValue
 	var res time.Time
 	var err error
 
 	def := time.Date(1860, 7, 2, 12, 0, 0, 0, time.UTC)
 
-	p = ParamPair{Key: "k"}
-	_, err = p.Time()
+	v = StringValue{}
+	_, err = v.Time()
 	Ω(err).Should(Equal(UnspecifiedValueErr))
 
-	res = p.TimeDefault(def)
+	res = v.TimeDefault(def)
 	Ω(res).Should(Equal(def))
 }
 
-func TestParamPairTime_Invalid(t *testing.T) {
+func TestStringValueTime_Invalid(t *testing.T) {
 	RegisterTestingT(t)
 
-	var p ParamPair
+	var v StringValue
 	var res time.Time
 	var err error
 
 	def := time.Date(1860, 7, 2, 12, 0, 0, 0, time.UTC)
 
-	p = ParamPair{Key: "k", Value: pStr("wrong time value")}
-	_, err = p.Time()
+	v = StringValue{Value: pStr("wrong time value")}
+	_, err = v.Time()
 	Ω(err).ShouldNot(BeNil())
 	Ω(err.Error()).Should(HavePrefix("parsing time "))
 
-	res = p.TimeDefault(def)
+	res = v.TimeDefault(def)
 	Ω(res).Should(Equal(def))
 }
 
