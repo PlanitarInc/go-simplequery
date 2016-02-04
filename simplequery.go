@@ -33,11 +33,11 @@ func (q Q) Has(key string) bool {
 	return ok
 }
 
-func (q Q) Get(key string) StringValue {
+func (q Q) Get(key string) *StringValue {
 	if vs, ok := q[key]; !ok {
-		return StringValue("")
+		return nil
 	} else {
-		return vs[0]
+		return &vs[0]
 	}
 }
 
@@ -79,16 +79,17 @@ func (s ValueSet) Empty() bool {
 	return len(s) == 0
 }
 
-func (s ValueSet) First() StringValue {
+func (s ValueSet) First() *StringValue {
 	return s.Index(0)
 }
 
-func (s ValueSet) Index(idx int) StringValue {
+func (s ValueSet) Index(idx int) *StringValue {
 	if idx < 0 || len(s) <= idx {
-		return StringValue("")
+		return nil
 	}
 
-	return StringValue(s[idx])
+	v := StringValue(s[idx])
+	return &v
 }
 
 func (s ValueSet) ForEach(fn func(StringValue)) {
@@ -147,16 +148,35 @@ func (s ValueSet) Times() []time.Time {
 
 type StringValue string
 
-func (s StringValue) String() string {
-	return string(s)
+func (s *StringValue) ParseString() (string, error) {
+	if s == nil {
+		return "", UnspecifiedValueErr
+	}
+	return string(*s), nil
 }
 
-func (s StringValue) ParseBool() (bool, error) {
-	return util.ParseBool(string(s))
+func (s *StringValue) String(def ...string) string {
+	defVal := ""
+	if len(def) > 0 {
+		defVal = def[0]
+	}
+
+	if val, err := s.ParseString(); err != nil {
+		return defVal
+	} else {
+		return val
+	}
 }
 
-func (s StringValue) Bool(def ...bool) bool {
-	defVal := true
+func (s *StringValue) ParseBool() (bool, error) {
+	if s == nil {
+		return false, UnspecifiedValueErr
+	}
+	return util.ParseBool(string(*s))
+}
+
+func (s *StringValue) Bool(def ...bool) bool {
+	defVal := s != nil
 	if len(def) > 0 {
 		defVal = def[0]
 	}
@@ -168,11 +188,14 @@ func (s StringValue) Bool(def ...bool) bool {
 	}
 }
 
-func (s StringValue) ParseInt64() (int64, error) {
-	return strconv.ParseInt(string(s), 0, 64)
+func (s *StringValue) ParseInt64() (int64, error) {
+	if s == nil {
+		return 0, UnspecifiedValueErr
+	}
+	return strconv.ParseInt(string(*s), 0, 64)
 }
 
-func (s StringValue) Int64(def ...int64) int64 {
+func (s *StringValue) Int64(def ...int64) int64 {
 	defVal := int64(0)
 	if len(def) > 0 {
 		defVal = def[0]
@@ -185,11 +208,14 @@ func (s StringValue) Int64(def ...int64) int64 {
 	}
 }
 
-func (s StringValue) ParseUint64() (uint64, error) {
-	return strconv.ParseUint(string(s), 0, 64)
+func (s *StringValue) ParseUint64() (uint64, error) {
+	if s == nil {
+		return 0, UnspecifiedValueErr
+	}
+	return strconv.ParseUint(string(*s), 0, 64)
 }
 
-func (s StringValue) Uint64(def ...uint64) uint64 {
+func (s *StringValue) Uint64(def ...uint64) uint64 {
 	defVal := uint64(0)
 	if len(def) > 0 {
 		defVal = def[0]
@@ -202,11 +228,14 @@ func (s StringValue) Uint64(def ...uint64) uint64 {
 	}
 }
 
-func (s StringValue) ParseFloat64() (float64, error) {
-	return strconv.ParseFloat(string(s), 64)
+func (s *StringValue) ParseFloat64() (float64, error) {
+	if s == nil {
+		return 0, UnspecifiedValueErr
+	}
+	return strconv.ParseFloat(string(*s), 64)
 }
 
-func (s StringValue) Float64(def ...float64) float64 {
+func (s *StringValue) Float64(def ...float64) float64 {
 	defVal := float64(0)
 	if len(def) > 0 {
 		defVal = def[0]
@@ -219,11 +248,14 @@ func (s StringValue) Float64(def ...float64) float64 {
 	}
 }
 
-func (s StringValue) ParseTime() (time.Time, error) {
-	return util.ParseTime(string(s))
+func (s *StringValue) ParseTime() (time.Time, error) {
+	if s == nil {
+		return time.Time{}, UnspecifiedValueErr
+	}
+	return util.ParseTime(string(*s))
 }
 
-func (s StringValue) Time(def ...time.Time) time.Time {
+func (s *StringValue) Time(def ...time.Time) time.Time {
 	defVal := time.Time{}
 	if len(def) > 0 {
 		defVal = def[0]
@@ -236,13 +268,17 @@ func (s StringValue) Time(def ...time.Time) time.Time {
 	}
 }
 
-func (s StringValue) List(sep ...string) []StringValue {
+func (s *StringValue) List(sep ...string) ValueSet {
+	if s == nil {
+		return []StringValue{}
+	}
+
 	separator := ","
 	if len(sep) > 0 {
 		separator = sep[0]
 	}
 
-	parts := strings.Split(string(s), separator)
+	parts := strings.Split(string(*s), separator)
 	res := make([]StringValue, len(parts))
 	for i := range parts {
 		res[i] = StringValue(parts[i])

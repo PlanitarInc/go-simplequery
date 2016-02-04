@@ -24,23 +24,23 @@ func TestQHas(t *testing.T) {
 func TestQGet(t *testing.T) {
 	RegisterTestingT(t)
 
-	var v StringValue
+	var v *StringValue
 
 	urlQ, err := url.ParseQuery("k1=v1_1&k1=v1_2&k2=v2&k3")
 	Ω(err).Should(BeNil())
 	q := FromQuery(urlQ)
 
 	v = q.Get("k1")
-	Ω(v).Should(Equal(StringValue("v1_1")))
+	Ω(v).Should(Equal(psv("v1_1")))
 
 	v = q.Get("k2")
-	Ω(v).Should(Equal(StringValue("v2")))
+	Ω(v).Should(Equal(psv("v2")))
 
 	v = q.Get("k3")
-	Ω(v).Should(Equal(StringValue("")))
+	Ω(v).Should(Equal(psv("")))
 
 	v = q.Get("k9")
-	Ω(v).Should(Equal(StringValue("")))
+	Ω(v).Should(BeNil())
 }
 
 func TestQGetAll(t *testing.T) {
@@ -149,13 +149,13 @@ func TestValueSetFirst(t *testing.T) {
 	var vs ValueSet
 
 	vs = ValueSetFrom([]string{})
-	Ω(vs.First()).Should(Equal(StringValue("")))
+	Ω(vs.First()).Should(BeNil())
 
 	vs = ValueSetFrom([]string{"v2"})
-	Ω(vs.First()).Should(Equal(StringValue("v2")))
+	Ω(vs.First()).Should(Equal(psv("v2")))
 
 	vs = ValueSetFrom([]string{"v1_1", "v1_2"})
-	Ω(vs.First()).Should(Equal(StringValue("v1_1")))
+	Ω(vs.First()).Should(Equal(psv("v1_1")))
 }
 
 func TestValueSetIndex(t *testing.T) {
@@ -163,10 +163,10 @@ func TestValueSetIndex(t *testing.T) {
 
 	vs := ValueSetFrom([]string{"v1_1", "v1_2"})
 
-	Ω(vs.Index(-1)).Should(Equal(StringValue("")))
-	Ω(vs.Index(0)).Should(Equal(StringValue("v1_1")))
-	Ω(vs.Index(1)).Should(Equal(StringValue("v1_2")))
-	Ω(vs.Index(2)).Should(Equal(StringValue("")))
+	Ω(vs.Index(-1)).Should(BeNil())
+	Ω(vs.Index(0)).Should(Equal(psv("v1_1")))
+	Ω(vs.Index(1)).Should(Equal(psv("v1_2")))
+	Ω(vs.Index(2)).Should(BeNil())
 }
 
 func TestValueSetStrings(t *testing.T) {
@@ -219,12 +219,38 @@ func TestStringValueString(t *testing.T) {
 	RegisterTestingT(t)
 
 	var v StringValue
+	var res string
+	var err error
 
 	v = StringValue("")
+
 	Ω(v.String()).Should(Equal(""))
 
+	res, err = v.ParseString()
+	Ω(err).Should(BeNil())
+	Ω(res).Should(Equal(""))
+
 	v = StringValue("value")
+
 	Ω(v.String()).Should(Equal("value"))
+
+	res, err = v.ParseString()
+	Ω(err).Should(BeNil())
+	Ω(res).Should(Equal("value"))
+}
+
+func TestStringValueString_Empty(t *testing.T) {
+	RegisterTestingT(t)
+
+	var v *StringValue
+	var err error
+
+	v = nil
+
+	Ω(v.String()).Should(Equal(""))
+
+	_, err = v.ParseString()
+	Ω(err).Should(Equal(UnspecifiedValueErr))
 }
 
 func TestStringValueBool(t *testing.T) {
@@ -268,16 +294,32 @@ func TestStringValueBool(t *testing.T) {
 func TestStringValueBool_Empty(t *testing.T) {
 	RegisterTestingT(t)
 
-	var v StringValue
+	var v *StringValue
 	var res bool
 	var err error
 
-	v = StringValue("")
+	v = nil
+
+	_, err = v.ParseBool()
+	Ω(err).Should(Equal(UnspecifiedValueErr))
+
+	// Flag is missing hence should return false
+	res = v.Bool()
+	Ω(res).Should(BeFalse())
+
+	res = v.Bool(true)
+	Ω(res).Should(BeTrue())
+
+	res = v.Bool(false)
+	Ω(res).Should(BeFalse())
+
+	v = psv("")
 
 	_, err = v.ParseBool()
 	Ω(err).ShouldNot(BeNil())
 	Ω(err.Error()).Should(Equal("unknown value"))
 
+	// Flag is not missing but has empty value, hence should return true
 	res = v.Bool()
 	Ω(res).Should(BeTrue())
 
@@ -346,11 +388,22 @@ func TestStringValueInt64(t *testing.T) {
 func TestStringValueInt64_Empty(t *testing.T) {
 	RegisterTestingT(t)
 
-	var v StringValue
+	var v *StringValue
 	var res int64
 	var err error
 
-	v = StringValue("")
+	v = nil
+
+	_, err = v.ParseInt64()
+	Ω(err).Should(Equal(UnspecifiedValueErr))
+
+	res = v.Int64()
+	Ω(res).Should(Equal(int64(0)))
+
+	res = v.Int64(-99)
+	Ω(res).Should(Equal(int64(-99)))
+
+	v = psv("")
 
 	_, err = v.ParseInt64()
 	Ω(err).ShouldNot(BeNil())
@@ -406,11 +459,22 @@ func TestStringValueUint64(t *testing.T) {
 func TestStringValueUint64_Empty(t *testing.T) {
 	RegisterTestingT(t)
 
-	var v StringValue
+	var v *StringValue
 	var res uint64
 	var err error
 
-	v = StringValue("")
+	v = nil
+
+	_, err = v.ParseUint64()
+	Ω(err).Should(Equal(UnspecifiedValueErr))
+
+	res = v.Uint64()
+	Ω(res).Should(Equal(uint64(0)))
+
+	res = v.Uint64(99)
+	Ω(res).Should(Equal(uint64(99)))
+
+	v = psv("")
 
 	_, err = v.ParseUint64()
 	Ω(err).ShouldNot(BeNil())
@@ -478,11 +542,22 @@ func TestStringValueFloat64(t *testing.T) {
 func TestStringValueFloat64_Empty(t *testing.T) {
 	RegisterTestingT(t)
 
-	var v StringValue
+	var v *StringValue
 	var res float64
 	var err error
 
-	v = StringValue("")
+	v = nil
+
+	_, err = v.ParseFloat64()
+	Ω(err).Should(Equal(UnspecifiedValueErr))
+
+	res = v.Float64()
+	Ω(res).Should(Equal(float64(0)))
+
+	res = v.Float64(-99.9)
+	Ω(res).Should(Equal(float64(-99.9)))
+
+	v = psv("")
 
 	_, err = v.ParseFloat64()
 	Ω(err).ShouldNot(BeNil())
@@ -567,13 +642,25 @@ func TestStringValueTime(t *testing.T) {
 func TestStringValueTime_Empty(t *testing.T) {
 	RegisterTestingT(t)
 
-	var v StringValue
+	var v *StringValue
 	var res time.Time
 	var err error
 
 	def := time.Date(1860, 7, 2, 12, 0, 0, 0, time.UTC)
 
-	v = StringValue("")
+	v = nil
+
+	_, err = v.ParseTime()
+	Ω(err).Should(Equal(UnspecifiedValueErr))
+
+	res = v.Time()
+	Ω(res).Should(Equal(time.Time{}))
+
+	res = v.Time(def)
+	Ω(res).Should(Equal(def))
+
+	v = psv("")
+
 	_, err = v.ParseTime()
 	Ω(err).ShouldNot(BeNil())
 	Ω(err.Error()).Should(HavePrefix("parsing time"))
@@ -606,6 +693,7 @@ func TestStringValueTime_Invalid(t *testing.T) {
 	Ω(res).Should(Equal(def))
 }
 
-func pStr(str string) *string {
-	return &str
+func psv(str string) *StringValue {
+	v := StringValue(str)
+	return &v
 }
