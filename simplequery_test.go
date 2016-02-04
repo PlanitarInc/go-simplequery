@@ -693,6 +693,57 @@ func TestStringValueTime_Invalid(t *testing.T) {
 	Ω(res).Should(Equal(def))
 }
 
+func TestStringValueList(t *testing.T) {
+	RegisterTestingT(t)
+
+	var v StringValue
+
+	v = StringValue("123")
+	Ω(v.List()).Should(Equal(ValueSet{
+		StringValue("123"),
+	}))
+
+	v = StringValue("1,2,3")
+	Ω(v.List()).Should(Equal(ValueSet{
+		StringValue("1"),
+		StringValue("2"),
+		StringValue("3"),
+	}))
+}
+
+func TestStringValueList_Empty(t *testing.T) {
+	RegisterTestingT(t)
+
+	var v *StringValue
+
+	v = nil
+	Ω(v.List()).Should(BeEmpty())
+
+	v = psv("")
+	Ω(v.List()).Should(Equal(ValueSet{
+		StringValue(""),
+	}))
+}
+
+func TestStringValueList_CustomSeparator(t *testing.T) {
+	RegisterTestingT(t)
+
+	var v StringValue
+
+	v = StringValue("1|2|3")
+
+	Ω(v.List("|")).Should(Equal(ValueSet{
+		StringValue("1"),
+		StringValue("2"),
+		StringValue("3"),
+	}))
+
+	Ω(v.List("2")).Should(Equal(ValueSet{
+		StringValue("1|"),
+		StringValue("|3"),
+	}))
+}
+
 func psv(str string) *StringValue {
 	v := StringValue(str)
 	return &v
