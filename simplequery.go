@@ -16,12 +16,12 @@ var (
 
 type Q map[string]ValueSet
 
-func NewValues() Q {
+func NewQ() Q {
 	return make(map[string]ValueSet)
 }
 
 func FromQuery(q url.Values) Q {
-	res := NewValues()
+	res := NewQ()
 	for k, vs := range q {
 		res[k] = ValueSetFrom(vs)
 	}
@@ -50,7 +50,7 @@ func (q Q) GetAll(key string) ValueSet {
 }
 
 func (q Q) FilterByKey(fn func(string) bool) Q {
-	res := NewValues()
+	res := NewQ()
 	for k, vs := range q {
 		if fn(k) {
 			res[k] = vs
